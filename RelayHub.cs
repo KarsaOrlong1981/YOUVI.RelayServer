@@ -56,6 +56,27 @@ namespace YOUVI.RelayServer
             var from = ConnectionToClient.TryGetValue(Context.ConnectionId, out var f) ? f : Context.ConnectionId;
             _logger?.LogInformation("JoinCall: connection {ConnId} (client {From}) joined group {CallId}", Context.ConnectionId, from, callId);
             await Clients.Group(callId).SendAsync("ParticipantJoined", from, callId);
+
+            // Also proactively notify bridge clients (clientIds starting with 'bridge_') so the bridge won't miss the event
+            // if it hasn't joined the group yet (race condition when mobile joins before bridge).
+            try
+            {
+                var bridgeConnectionIds = ClientConnections
+                    .Where(kvp => kvp.Key.StartsWith("bridge_", StringComparison.OrdinalIgnoreCase))
+                    .SelectMany(kvp => kvp.Value.Keys)
+                    .Distinct()
+                    .ToList();
+
+                if (bridgeConnectionIds.Count > 0)
+                {
+                    await Clients.Clients(bridgeConnectionIds).SendAsync("ParticipantJoined", from, callId);
+                    _logger?.LogInformation("JoinCall: Notified {Count} bridge connections about participant {From} in call {CallId}", bridgeConnectionIds.Count, from, callId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning("JoinCall: failed to notify bridge clients: {Message}", ex.Message);
+            }
         }
 
         public async Task LeaveCall(string callId)

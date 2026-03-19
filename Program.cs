@@ -1,3 +1,4 @@
+using System;
 using YOUVI.RelayServer;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,7 +14,14 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddSignalR();
+// Configure SignalR with detailed errors and shorter keep-alive for better heartbeat detection
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = true;
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
+});
+
 var app = builder.Build();
 
 app.UseCors("AllowAll");

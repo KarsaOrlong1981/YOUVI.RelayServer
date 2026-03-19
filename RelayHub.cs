@@ -25,10 +25,12 @@ namespace YOUVI.RelayServer
         public Task Register(string clientId)
         {
             var connId = Context.ConnectionId;
+            var remoteIp = Context.GetHttpContext()?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
+            var userAgent = Context.GetHttpContext()?.Request?.Headers["User-Agent"].ToString() ?? string.Empty;
             var set = ClientConnections.GetOrAdd(clientId, _ => new ConcurrentDictionary<string, byte>());
             set[connId] = 0;
             ConnectionToClient[connId] = clientId;
-            _logger?.LogInformation("Register: clientId {ClientId} connection {ConnId}", clientId, connId);
+            _logger?.LogInformation("Register: clientId {ClientId} connection {ConnId} from {RemoteIP} UA:{UserAgent}", clientId, connId, remoteIp, userAgent);
             return Task.CompletedTask;
         }
 
@@ -74,9 +76,11 @@ namespace YOUVI.RelayServer
         public override Task OnDisconnectedAsync(Exception? exception)
         {
             var connId = Context.ConnectionId;
+            var remoteIp = Context.GetHttpContext()?.Connection?.RemoteIpAddress?.ToString() ?? "unknown";
+            var userAgent = Context.GetHttpContext()?.Request?.Headers["User-Agent"].ToString() ?? string.Empty;
             if (ConnectionToClient.TryRemove(connId, out var clientId))
             {
-                _logger?.LogInformation("OnDisconnected: connection {ConnId} removed for client {ClientId}", connId, clientId);
+                _logger?.LogInformation("OnDisconnected: connection {ConnId} removed for client {ClientId}. RemoteIP={RemoteIP} UA={UserAgent} Exception={Exception}", connId, clientId, remoteIp, userAgent, exception?.ToString());
                 if (ClientConnections.TryGetValue(clientId, out var set))
                 {
                     set.TryRemove(connId, out _);
@@ -89,7 +93,7 @@ namespace YOUVI.RelayServer
             }
             else
             {
-                _logger?.LogInformation("OnDisconnected: connection {ConnId} had no mapped client", connId);
+                _logger?.LogInformation("OnDisconnected: connection {ConnId} had no mapped client. RemoteIP={RemoteIP} UA={UserAgent} Exception={Exception}", connId, remoteIp, userAgent, exception?.ToString());
             }
 
             return base.OnDisconnectedAsync(exception);
